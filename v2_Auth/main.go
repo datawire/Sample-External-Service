@@ -1,3 +1,5 @@
+// From DataWire Example service as base
+
 package main
 
 import (

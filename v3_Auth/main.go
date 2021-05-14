@@ -2,6 +2,8 @@
 
 package main
 
+// NOTE: VERY WIP, DOES NOT WORK YET
+
 import (
 	"context"
 	"log"
@@ -56,55 +58,20 @@ func (s *AuthService) Check(ctx context.Context, req *envoyAuthV2.CheckRequest) 
 			},
 		}, nil
 	}
-	switch requestURI.Path {
-	case "/external-grpc/headers":
-		log.Print("=> ALLOW")
-		header := make([]*envoyCoreV2.HeaderValueOption, 0, 4+len(req.GetAttributes().GetRequest().GetHttp().GetHeaders()))
-		for k, v := range req.GetAttributes().GetRequest().GetHttp().GetHeaders() {
-			header = append(header, &envoyCoreV2.HeaderValueOption{
-				Header: &envoyCoreV2.HeaderValue{Key: "X-Input-" + k, Value: v},
-				Append: &wrappers.BoolValue{Value: false},
-			})
-		}
-		header = append(header, &envoyCoreV2.HeaderValueOption{
-			Header: &envoyCoreV2.HeaderValue{Key: "X-Allowed-Input-Header", Value: "after"},
-			Append: &wrappers.BoolValue{Value: true},
-		})
-		header = append(header, &envoyCoreV2.HeaderValueOption{
-			Header: &envoyCoreV2.HeaderValue{Key: "X-Disallowed-Input-Header", Value: "after"},
-			Append: &wrappers.BoolValue{Value: false},
-		})
-		header = append(header, &envoyCoreV2.HeaderValueOption{
-			Header: &envoyCoreV2.HeaderValue{Key: "X-Allowed-Output-Header", Value: "baz"},
-			Append: &wrappers.BoolValue{Value: true},
-		})
-		header = append(header, &envoyCoreV2.HeaderValueOption{
-			Header: &envoyCoreV2.HeaderValue{Key: "X-Disallowed-Output-Header", Value: "qux"},
-			Append: &wrappers.BoolValue{Value: false},
-		})
-		return &envoyAuthV2.CheckResponse{
-			Status: &status.Status{Code: int32(code.Code_OK)},
-			HttpResponse: &envoyAuthV2.CheckResponse_OkResponse{
-				OkResponse: &envoyAuthV2.OkHttpResponse{
-					Headers: header,
+
+	log.Print("=> Allow")
+	return &envoyAuthV2.CheckResponse{
+		Status: &status.Status{Code: int32(code.Code_UNKNOWN)},
+		HttpResponse: &envoyAuthV2.CheckResponse_DeniedResponse{
+			DeniedResponse: &envoyAuthV2.DeniedHttpResponse{
+				Status: &envoyType.HttpStatus{Code: http.StatusOK},
+				Headers: []*envoyCoreV2.HeaderValueOption{
+					{Header: &envoyCoreV2.HeaderValue{Key: "X-Allowed-Output-Header", Value: "baz"}},
+					{Header: &envoyCoreV2.HeaderValue{Key: "X-Disallowed-Output-Header", Value: "qux"}},
+					{Header: &envoyCoreV2.HeaderValue{Key: "Content-Type", Value: "application/json"}},
 				},
+				Body: `{"msg": "intercepted"}`,
 			},
-		}, nil
-	default:
-		log.Print("=> DENY")
-		return &envoyAuthV2.CheckResponse{
-			Status: &status.Status{Code: int32(code.Code_UNKNOWN)},
-			HttpResponse: &envoyAuthV2.CheckResponse_DeniedResponse{
-				DeniedResponse: &envoyAuthV2.DeniedHttpResponse{
-					Status: &envoyType.HttpStatus{Code: http.StatusOK},
-					Headers: []*envoyCoreV2.HeaderValueOption{
-						{Header: &envoyCoreV2.HeaderValue{Key: "X-Allowed-Output-Header", Value: "baz"}},
-						{Header: &envoyCoreV2.HeaderValue{Key: "X-Disallowed-Output-Header", Value: "qux"}},
-						{Header: &envoyCoreV2.HeaderValue{Key: "Content-Type", Value: "application/json"}},
-					},
-					Body: `{"msg": "intercepted"}`,
-				},
-			},
-		}, nil
-	}
+		},
+	}, nil
 }
