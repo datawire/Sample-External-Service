@@ -65,7 +65,7 @@ spec:
     spec:
       containers:
       - name: grpc-auth
-        image:  {YOUR_IMAGE_HERE}
+        image:  {YOUR IMAGE HERE}
         imagePullPolicy: Always
         ports:
         - name: http-api
@@ -90,9 +90,10 @@ metadata:
 spec:
   External:
     proto: "grpc"
-    auth_service: "grpc-auth:9095"
+    auth_service: "grpc-auth:3000"
     allowed_request_headers:
-    - "Authorization"
+    - "v2Overwrite"
+    - "v2Append"
 ---
 apiVersion: getambassador.io/v2
 kind: FilterPolicy
