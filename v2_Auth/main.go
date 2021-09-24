@@ -7,10 +7,10 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"time"
 	"strconv"
+	"regexp"
+	"os"
 
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"google.golang.org/genproto/googleapis/rpc/code"
 	"google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc"
@@ -22,6 +22,16 @@ import (
 	"github.com/datawire/dlib/dhttp"
 )
 
+const (
+	EnvAction        	= "ACTION"      // Can be "allow, 403, 404, 503. Default: 404
+	EnvQuery        	= "QUERY"       // Value of the query to take action on
+	EnvQueryRegex       = "REGEX"       // Can be "True/False. Sets whether the above query should be interpreted as a string or a regex. Default: false"
+)
+
+var action = "404"
+var query = `\?`
+var queryRegex = false
+
 func main() {
 	grpcHandler := grpc.NewServer()
 	envoyAuthV2.RegisterAuthorizationServer(grpcHandler, &AuthService{})
@@ -30,21 +40,52 @@ func main() {
 		Handler: grpcHandler,
 	}
 
+	
+	envQueryRegex, err := strconv.ParseBool(getEnv(EnvQueryRegex, "false"))
+	if err != nil {
+		log.Println("ERROR: REGEX environment variable must be either 'true' or 'false'.")
+	} else {
+		queryRegex = envQueryRegex
+	}
+
+	envAction := getEnv(EnvAction, "404")
+	if envAction == "" {
+		log.Println("ACTION envionment variable not set, defaulting to returning 404s on matched queries")
+	}
+	action = envAction
+
+	envQuery := getEnv(EnvQuery, "")
+	if envQuery == "" {
+		log.Println("ERROR: query envionment variable cannot be empty.")
+	}
+	query += envQuery
+
+
 	log.Print("Starting Envoy Auth Service v2 Over gRPC...")
+	log.Print("Rejecting all requests with query parameters...")
 	log.Print("Listening on port: 3000")
 	log.Fatal(sc.ListenAndServe(context.Background(), ":3000"))
 }
 
 type AuthService struct{}
 
+func getEnv(name, fallback string) string {
+	res := os.Getenv(name)
+	if res == "" {
+		res = fallback
+	}
+
+	return res
+}
 func (s *AuthService) Check(ctx context.Context, req *envoyAuthV2.CheckRequest) (*envoyAuthV2.CheckResponse, error) {
 	// Log some info about the request
-	log.Println("~~~~~~~~> INCOMMING REQUEST ~~~~~~~~>",
-		req.GetAttributes().GetRequest().GetHttp().GetMethod(),
-		req.GetAttributes().GetRequest().GetHttp().GetHost(),
-		req.GetAttributes().GetRequest().GetHttp().GetPath(),
-	)
+	log.Println("~~~~~~~~> INCOMMING REQUEST ~~~~~~~~>")
+	log.Println("Method: ", req.GetAttributes().GetRequest().GetHttp().GetMethod())
+	log.Println("Host: ", req.GetAttributes().GetRequest().GetHttp().GetHost())
+	log.Println("Path: ", req.GetAttributes().GetRequest().GetHttp().GetPath())
+	
 	requestURI, err := url.ParseRequestURI(req.GetAttributes().GetRequest().GetHttp().GetPath())
+	// Unable to read the request URI
 	if err != nil {
 		log.Println("<~~~~~~~~ ERROR <~~~~~~~~", err)
 		return &envoyAuthV2.CheckResponse{
@@ -53,70 +94,106 @@ func (s *AuthService) Check(ctx context.Context, req *envoyAuthV2.CheckRequest) 
 				DeniedResponse: &envoyAuthV2.DeniedHttpResponse{
 					Status: &envoyType.HttpStatus{Code: http.StatusInternalServerError},
 					Headers: []*envoyCoreV2.HeaderValueOption{
-						{Header: &envoyCoreV2.HeaderValue{Key: "Content-Type", Value: "application/json"}},
+						{Header: &envoyCoreV2.HeaderValue{Key: "Content-Type", Value: "text/html"}},
 					},
-					Body: `{"msg": "internal server error"}`,
+					Body: `Internal Server Error`,
 				},
 			},
 		}, nil
 	}
-	log.Println("RequestURI: ", requestURI)
-
-	// Read over and log the headers for the request
-	denyHeader := false
-	log.Println("|~~~~~~~~~~~~ BEGIN HEADERS ~~~~~~~~~~~~|")
-	for k, v := range req.GetAttributes().GetRequest().GetHttp().GetHeaders() {
-		log.Printf("%s: %s", k, v)
-		// Sleep for x seconds when this header is present
-		if k == "sleepfor" {
-			seconds, _ := strconv.Atoi(v)
-			log.Printf("%s%d%s", "Sleeping for ", seconds, " seconds...")
-			time.Sleep(time.Duration(seconds) * time.Second)
-		} else if k == "deny-me" {
-			denyHeader = true
-		}
-	}
-	log.Println("|~~~~~~~~~~~~ END HEADERS ~~~~~~~~~~~~|")
-
-
-	// You can perform operations based on the path, or you can perform them based on the  headers we read in earlier
-	if requestURI.Path == "/deny-me/" {
-		log.Print("<~~~~~~~~ DENIED REQUEST <~~~~~~~~")
-		// Define your headers in the return statement
+	log.Println("URI: ", requestURI)
+	
+	queryRegx := regexp.MustCompile(query)
+	containsQuery := queryRegx.FindStringIndex(requestURI.String()) != nil
+	
+	if !containsQuery {
+		log.Println("<~~~~~~~~ ALLOW REQUEST <~~~~~~~~ ")
+		log.Println("Request does not contain query, allowing")
+		header := make([]*envoyCoreV2.HeaderValueOption, 0, 4+len(req.GetAttributes().GetRequest().GetHttp().GetHeaders()))
 		return &envoyAuthV2.CheckResponse{
-			Status: &status.Status{Code: int32(code.Code_PERMISSION_DENIED)},
-			HttpResponse: &envoyAuthV2.CheckResponse_DeniedResponse{
-				DeniedResponse: &envoyAuthV2.DeniedHttpResponse{
-					Status: &envoyType.HttpStatus{Code: http.StatusOK},
-					Headers: []*envoyCoreV2.HeaderValueOption{
-						{Header: &envoyCoreV2.HeaderValue{Key: "Content-Type", Value: "application/json"}},
-					},
-					Body: `{"msg": "Your request was denied, unauthorized path /deny-me/"}`,
+			Status: &status.Status{Code: int32(code.Code_OK)},
+			HttpResponse: &envoyAuthV2.CheckResponse_OkResponse{
+				OkResponse: &envoyAuthV2.OkHttpResponse{
+					Headers: header,
 				},
 			},
 		}, nil
 	}
 
-	log.Print("<~~~~~~~~ ALLOW REQUEST <~~~~~~~~ ")
-	// Or work on the headers before building the return statement
-	header := make([]*envoyCoreV2.HeaderValueOption, 0, 4+len(req.GetAttributes().GetRequest().GetHttp().GetHeaders()))
-	header = append(header, &envoyCoreV2.HeaderValueOption{
-		Header: &envoyCoreV2.HeaderValue{Key: "v2Overwrite", Value: "HeaderOverwritten"},
-		// This will overwrite the value of this header if it exists
-		Append: &wrappers.BoolValue{Value: false},
-	})
-	header = append(header, &envoyCoreV2.HeaderValueOption{
-		Header: &envoyCoreV2.HeaderValue{Key: "v2Append", Value: "HeaderAppended"},
-		// This will append this value to the header if it exists
-		Append: &wrappers.BoolValue{Value: true},
-	})
+	log.Println("Request contains matched query")
 
-	return &envoyAuthV2.CheckResponse{
-		Status: &status.Status{Code: int32(code.Code_OK)},
-		HttpResponse: &envoyAuthV2.CheckResponse_OkResponse{
-			OkResponse: &envoyAuthV2.OkHttpResponse{
-				Headers: header,
-			},
-		},
-	}, nil
+	switch action {
+        case "allow":
+			log.Println("<~~~~~~~~ ALLOW REQUEST <~~~~~~~~ ")
+			log.Println("Allowing request with query anyways")
+			header := make([]*envoyCoreV2.HeaderValueOption, 0, 4+len(req.GetAttributes().GetRequest().GetHttp().GetHeaders()))
+			return &envoyAuthV2.CheckResponse{
+				Status: &status.Status{Code: int32(code.Code_OK)},
+				HttpResponse: &envoyAuthV2.CheckResponse_OkResponse{
+					OkResponse: &envoyAuthV2.OkHttpResponse{
+						Headers: header,
+					},
+				},
+			}, nil
+        case "400":
+			log.Println("<~~~~~~~~ DENIED REQUEST <~~~~~~~~")
+			log.Println("returning a 400")
+			return &envoyAuthV2.CheckResponse{
+				Status: &status.Status{Code: int32(code.Code_INVALID_ARGUMENT)},
+				HttpResponse: &envoyAuthV2.CheckResponse_DeniedResponse{
+					DeniedResponse: &envoyAuthV2.DeniedHttpResponse{
+						Status: &envoyType.HttpStatus{Code: http.StatusBadRequest},
+						Headers: []*envoyCoreV2.HeaderValueOption{
+							{Header: &envoyCoreV2.HeaderValue{Key: "Content-Type", Value: "text/html"}},
+						},
+						Body: `Bad Request`,
+					},
+				},
+			}, nil
+        case "403":
+			log.Println("<~~~~~~~~ DENIED REQUEST <~~~~~~~~")
+			log.Println("returning a 403")
+			return &envoyAuthV2.CheckResponse{
+				Status: &status.Status{Code: int32(code.Code_PERMISSION_DENIED)},
+				HttpResponse: &envoyAuthV2.CheckResponse_DeniedResponse{
+					DeniedResponse: &envoyAuthV2.DeniedHttpResponse{
+						Status: &envoyType.HttpStatus{Code: http.StatusForbidden},
+						Headers: []*envoyCoreV2.HeaderValueOption{
+							{Header: &envoyCoreV2.HeaderValue{Key: "Content-Type", Value: "text/html"}},
+						},
+						Body: `Unauthorized`,
+					},
+				},
+			}, nil
+        case "404":
+			log.Println("<~~~~~~~~ DENIED REQUEST <~~~~~~~~")
+			log.Println("returning a 404")
+			return &envoyAuthV2.CheckResponse{
+				Status: &status.Status{Code: int32(code.Code_NOT_FOUND)},
+				HttpResponse: &envoyAuthV2.CheckResponse_DeniedResponse{
+					DeniedResponse: &envoyAuthV2.DeniedHttpResponse{
+						Status: &envoyType.HttpStatus{Code: http.StatusNotFound},
+						Headers: []*envoyCoreV2.HeaderValueOption{
+							{Header: &envoyCoreV2.HeaderValue{Key: "Content-Type", Value: "text/html"}},
+						},
+						Body: `Not Found`,
+					},
+				},
+			}, nil
+        default:
+			log.Println("<~~~~~~~~ DENIED REQUEST <~~~~~~~~")
+			log.Println("Defaulting to denying request with a 404")
+			return &envoyAuthV2.CheckResponse{
+				Status: &status.Status{Code: int32(code.Code_NOT_FOUND)},
+				HttpResponse: &envoyAuthV2.CheckResponse_DeniedResponse{
+					DeniedResponse: &envoyAuthV2.DeniedHttpResponse{
+						Status: &envoyType.HttpStatus{Code: http.StatusNotFound},
+						Headers: []*envoyCoreV2.HeaderValueOption{
+							{Header: &envoyCoreV2.HeaderValue{Key: "Content-Type", Value: "text/html"}},
+						},
+						Body: `Not Found`,
+					},
+				},
+			}, nil
+	}
 }
