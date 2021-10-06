@@ -48,9 +48,11 @@ func (s *AuthService) Check(ctx context.Context, req *envoyAuthV2.CheckRequest) 
 	if err != nil {
 		log.Println("<~~~~~~~~ ERROR <~~~~~~~~", err)
 		return &envoyAuthV2.CheckResponse{
+			// https://pkg.go.dev/google.golang.org/genproto/googleapis/rpc/code
 			Status: &status.Status{Code: int32(code.Code_UNKNOWN)},
 			HttpResponse: &envoyAuthV2.CheckResponse_DeniedResponse{
 				DeniedResponse: &envoyAuthV2.DeniedHttpResponse{
+					// https://pkg.go.dev/net/http#pkg-variables
 					Status: &envoyType.HttpStatus{Code: http.StatusInternalServerError},
 					Headers: []*envoyCoreV2.HeaderValueOption{
 						{Header: &envoyCoreV2.HeaderValue{Key: "Content-Type", Value: "application/json"}},
@@ -80,14 +82,14 @@ func (s *AuthService) Check(ctx context.Context, req *envoyAuthV2.CheckRequest) 
 
 
 	// You can perform operations based on the path, or you can perform them based on the  headers we read in earlier
-	if requestURI.Path == "/deny-me/" {
+	if requestURI.Path == "/deny-me/" || denyHeader {
 		log.Print("<~~~~~~~~ DENIED REQUEST <~~~~~~~~")
 		// Define your headers in the return statement
 		return &envoyAuthV2.CheckResponse{
 			Status: &status.Status{Code: int32(code.Code_PERMISSION_DENIED)},
 			HttpResponse: &envoyAuthV2.CheckResponse_DeniedResponse{
 				DeniedResponse: &envoyAuthV2.DeniedHttpResponse{
-					Status: &envoyType.HttpStatus{Code: http.StatusOK},
+					Status: &envoyType.HttpStatus{Code: http.StatusForbidden},
 					Headers: []*envoyCoreV2.HeaderValueOption{
 						{Header: &envoyCoreV2.HeaderValue{Key: "Content-Type", Value: "application/json"}},
 					},
