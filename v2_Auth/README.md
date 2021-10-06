@@ -13,7 +13,7 @@ When requests pass through this filter it will:
 - Append a new value to the `v2Append` header.
 
 > You can find a list of status codes to be used with this external filter at the following two links:
-> - https://github.com/emissary-ingress/emissary/blob/master/pkg/api/envoy/type/http_status.pb.go
+> - https://pkg.go.dev/google.golang.org/genproto/googleapis/rpc/codego
 > - https://pkg.go.dev/net/http#pkg-variables
 
 ## Instructions for building:
