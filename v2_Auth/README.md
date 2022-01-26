@@ -24,7 +24,7 @@ run `go mod tidy`
 
 run `docker build -t {DOCKER_HUB_USERNAME}/{NAME_FOR_IMAGE}:{VERSION} .`
 - I've already built and deployed an image you can use instead: 
-- `alicewasko/envoy-grpc-auth-v2:1.5`
+- `alicewasko/envoy-grpc-auth-v2:1.6`
 
 
 ## Instructions for Deploying:
