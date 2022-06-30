@@ -11,6 +11,8 @@ available such as:
 - Read headers and perform actions based on values
 - Perform actions based on the url path of the reuqest
 
+The service may be deployed as an Edge-Stack `External Filter` and/or an Emissary-ingress `AuthService`
+
 There are three versions for historical and future examples.
 - v2Alpha # Deprecated, preserved for historical reference
 - v2      # This is supported in Emissary-ingress / Edge-Stack `1.x` - `2.2.z`
