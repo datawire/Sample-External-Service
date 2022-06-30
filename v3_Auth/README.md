@@ -104,8 +104,8 @@ spec:
     protocol_version: v3
     auth_service: "grpc-auth.default:3000"
     allowed_request_headers:
-    - "v2Overwrite"
-    - "v2Append"
+    - "v3alphaOverwrite"
+    - "v3alphaAppend"
 ---
 apiVersion: getambassador.io/v3alpha1
 kind: FilterPolicy
@@ -204,8 +204,8 @@ Apply the quote service and it's mapping.
 2. Make some requests to the quote service. Our external filter will run this service on the requests before they get sent off to the quote service.
    The quote service has a `/debug/` endpoint which will print out all the headers for incomming requests so we can validate whether or not our service is working.
 
-  - `curl -kv https://{YOUR_AMBASSADOR_IP}/quote/debug/ -H "v3alphaOverwrite: test" -H "v2Append: test"`
-    - You Should see that the value of the `v2Overwrite` header that we passed was changed
+  - `curl -kv https://{YOUR_AMBASSADOR_IP}/quote/debug/ -H "v3alphaOverwrite: test" -H "v3alphaAppend: test"`
+    - You Should see that the value of the `v3alphaOverwrite` header that we passed was changed
     - The value of the `v3alphaAppend` header should also have a new value along with the value you passed
 
   - `curl -kv https://{YOUR_AMBASSADOR_IP}/quote/debug/ -H "deny-me: true"`
