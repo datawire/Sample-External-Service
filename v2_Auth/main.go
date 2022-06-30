@@ -43,7 +43,11 @@ func (s *AuthService) Check(ctx context.Context, req *envoyAuthV2.CheckRequest) 
 		req.GetAttributes().GetRequest().GetHttp().GetMethod(),
 		req.GetAttributes().GetRequest().GetHttp().GetHost(),
 		req.GetAttributes().GetRequest().GetHttp().GetPath(),
+		req.GetAttributes().GetRequest().GetHttp().GetBody(),
 	)
+	log.Println("~~~~~~~~> REQUEST BODY ~~~~~~~~>", req.GetAttributes().GetRequest().GetHttp().GetBody())
+	log.Println("~~~~~~~~> REQUEST HTTP ~~~~~~~~>", req.GetAttributes().GetRequest().GetHttp())
+	log.Println("~~~~~~~~> REQUEST ~~~~~~~~>", req.GetAttributes().GetRequest())
 	requestURI, err := url.ParseRequestURI(req.GetAttributes().GetRequest().GetHttp().GetPath())
 	if err != nil {
 		log.Println("<~~~~~~~~ ERROR <~~~~~~~~", err)
