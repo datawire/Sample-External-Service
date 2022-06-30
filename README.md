@@ -13,7 +13,7 @@ available such as:
 
 There are three versions for historical and future examples.
 - v2Alpha # Deprecated, preserved for historical reference
-- v2      # This is the currently supported version in Ambassador
-- v3      # This version is not supported yet, but will be when v2 hits EOL
+- v2      # This is supported in Emissary-ingress / Edge-Stack `1.x` - `2.2.z`
+- v3      # This version is supported as of `2.3.0` and as of `3.0.0`+ is the only supported version.
 
 Instructions for building and deploying them can be found in each directory.
