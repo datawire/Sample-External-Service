@@ -1,5 +1,12 @@
-# v2_Auth
-Example service for authorization in Envoy over gRPC
+# Envoy-Auth-gRPC-v3
+
+## V3 of the auth service API used for Ambassador Edge Stack has been released as part of Emissary-ingress/Edge-Stack version `2.3.0`. Version `2.3.0` supports both the `v2` and the `v3` API, whereas as of Emissary-ingress/Edge-Stack version `3.0.0` only the `v3` transport protocol is supported.
+
+## Please see the v2 service if you are looking for an example you can use for Emissary-ingress/Edge-Stack versions prior to `2.3.0`.
+
+
+# v3_Auth
+Example service for authorization in Envoy over gRPC using transport protocol `v3`
 
 This is an example service for performing operations on requests. It is meant to be used with
 an Ambassador Edge Stack `External Filter`.
@@ -9,8 +16,8 @@ When requests pass through this filter it will:
 - If the `sleepfor` header is present, it will parse it's value and sleep for that ammount of time to simulate a timeout or delayed response form the service.
 - If the `deny-me` header is present, it will deny the request.
 - If the `url.path` of the request is `/deny-me/` it will deny the request.
-- Rewrite the value of the `v2Overwrite` header.
-- Append a new value to the `v2Append` header.
+- Rewrite the value of the `v3alphaOverwrite` header.
+- Append a new value to the `v3alphaAppend` header.
 
 > You can find a list of status codes to be used with this external filter at the following two links:
 > - https://pkg.go.dev/google.golang.org/genproto/googleapis/rpc/codego
@@ -24,7 +31,7 @@ run `go mod tidy`
 
 run `docker build -t {DOCKER_HUB_USERNAME}/{NAME_FOR_IMAGE}:{VERSION} .`
 - I've already built and deployed an image you can use instead: 
-- `alicewasko/envoy-grpc-auth-v2:1.6`
+- `alicewasko/grpcauth-v3:0.1`
 
 
 ## Instructions for Deploying:
@@ -33,7 +40,7 @@ Install [Ambassador Edge Stack](https://www.getambassador.io/docs/edge-stack/lat
 
 
 
-Create a new file `Authv2.yaml` and add the following information to it:
+Create a new file `Authv3.yaml` and add the following information to it:
 **Make sure to replace `{YOUR_IMAGE_HERE}` with the image you built, or the prebuilt image I provided above**
 
 ```
@@ -69,7 +76,7 @@ spec:
     spec:
       containers:
       - name: grpc-auth
-        image:  {YOUR IMAGE HERE}
+        image:  alicewasko/grpcauth-v3:0.1
         imagePullPolicy: Always
         ports:
         - name: http-api
@@ -82,40 +89,41 @@ spec:
 
 
 
-Create a new file `AuthFilterv2.yaml` and add the following to it:
+Create a new file `AuthFilterv3.yaml` and add the following to it:
 This will create a filter for us, configure that filter to run on all requests, and configure that filter to send requests to this service.
 
 ```
 ---
-apiVersion: getambassador.io/v2
+apiVersion: getambassador.io/v3alpha1
 kind: Filter
 metadata:
-  name: ext-filter
+  name: ext-filter-v3
 spec:
   External:
     proto: "grpc"
-    auth_service: "grpc-auth:3000"
+    protocol_version: v3
+    auth_service: "grpc-auth.default:3000"
     allowed_request_headers:
-    - "v2Overwrite"
-    - "v2Append"
+    - "v3alphaOverwrite"
+    - "v3alphaAppend"
 ---
-apiVersion: getambassador.io/v2
+apiVersion: getambassador.io/v3alpha1
 kind: FilterPolicy
 metadata:
-  name: authentication
+  name: ext-filter-v3
 spec:
   rules:
   - host: "*"
-    path: /*
+    path: /**
     filters:
-    - name: ext-filter
+    - name: ext-filter-v3
 ```
 
 Apply the Service, Deployment, and Filter configuration:
 
-`kubectl apply -f Authv2.yaml`
+`kubectl apply -f Authv3.yaml`
 
-`kubectl apply -f AuthFilterv2.yaml`
+`kubectl apply -f AuthFilterv3.yaml`
 
 
 ## Need a service to test this out with?
@@ -126,11 +134,12 @@ This will deploy an additional service that we can send requests to in order to 
 Create a `QuoteDeployment.yaml` file:
 ```
 ---
-apiVersion: getambassador.io/v2
+apiVersion: getambassador.io/v3alpha1
 kind: Mapping
 metadata:
   name: quote-mapping
 spec:
+  hostname: "*"
   prefix: /quote/
   service: quote
 ---
@@ -195,9 +204,9 @@ Apply the quote service and it's mapping.
 2. Make some requests to the quote service. Our external filter will run this service on the requests before they get sent off to the quote service.
    The quote service has a `/debug/` endpoint which will print out all the headers for incomming requests so we can validate whether or not our service is working.
 
-  - `curl -kv https://{YOUR_AMBASSADOR_IP}/quote/debug/ -H "v2Overwrite: test" -H "v2Append: test"`
-    - You Should see that the value of the `v2Overwrite` header that we passed was changed
-    - The value of the `v2Append` header should also have a new value along with the value you passed
+  - `curl -kv https://{YOUR_AMBASSADOR_IP}/quote/debug/ -H "v3alphaOverwrite: test" -H "v3alphaAppend: test"`
+    - You Should see that the value of the `v3alphaOverwrite` header that we passed was changed
+    - The value of the `v3alphaAppend` header should also have a new value along with the value you passed
 
   - `curl -kv https://{YOUR_AMBASSADOR_IP}/quote/debug/ -H "deny-me: true"`
     - You should see an error is returned since the request was denied by our service

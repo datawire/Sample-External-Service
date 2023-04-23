@@ -7,17 +7,17 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"time"
 	"strconv"
+	"time"
 
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"google.golang.org/genproto/googleapis/rpc/code"
 	"google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc"
 
-	envoyCoreV2 "github.com/datawire/ambassador/pkg/api/envoy/api/v2/core"
-	envoyAuthV2 "github.com/datawire/ambassador/pkg/api/envoy/service/auth/v2"
-	envoyType "github.com/datawire/ambassador/pkg/api/envoy/type"
+	envoyCoreV2 "github.com/emissary-ingress/emissary/v3/pkg/api/envoy/api/v2/core"
+	envoyAuthV2 "github.com/emissary-ingress/emissary/v3/pkg/api/envoy/service/auth/v2"
+	envoyType "github.com/emissary-ingress/emissary/v3/pkg/api/envoy/type"
 
 	"github.com/datawire/dlib/dhttp"
 )
@@ -83,7 +83,6 @@ func (s *AuthService) Check(ctx context.Context, req *envoyAuthV2.CheckRequest) 
 		}
 	}
 	log.Println("|~~~~~~~~~~~~ END HEADERS ~~~~~~~~~~~~|")
-
 
 	// You can perform operations based on the path, or you can perform them based on the  headers we read in earlier
 	if requestURI.Path == "/deny-me/" || denyHeader {
